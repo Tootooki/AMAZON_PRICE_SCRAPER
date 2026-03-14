@@ -1,6 +1,6 @@
 """
-Amazon ASIN Price Scraper — Web Application
-Flask app with background processing, live progress, and Excel download.
+Amazon ASIN Price Checker — Web Application
+Flask app using SP-API for pricing data with background processing and Excel download.
 """
 
 import os
@@ -13,11 +13,11 @@ from flask import Flask, render_template, request, jsonify, send_file
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
-from scraper import run_scrape_job
+from scraper import run_pricing_job
 
 app = Flask(__name__)
 
-# In-memory job store (fine for single-worker deployment)
+# In-memory job store
 jobs = {}
 
 
@@ -28,18 +28,18 @@ def index():
 
 @app.route("/api/scrape", methods=["POST"])
 def start_scrape():
-    """Start a scraping job in the background."""
+    """Start a pricing job in the background."""
     data = request.get_json()
     raw_input = data.get("asins", "")
 
-    # Parse ASINs: support newlines, commas, spaces, tabs
+    # Parse ASINs
     asins = []
     for token in raw_input.replace(",", " ").replace("\t", " ").replace("\n", " ").split():
         token = token.strip().upper()
-        if token and len(token) >= 5:  # Basic ASIN validation
+        if token and len(token) >= 5:
             asins.append(token)
 
-    # Deduplicate while preserving order
+    # Deduplicate
     seen = set()
     unique_asins = []
     for a in asins:
@@ -48,9 +48,8 @@ def start_scrape():
             unique_asins.append(a)
 
     if not unique_asins:
-        return jsonify({"error": "No valid ASINs found. Please enter at least one ASIN."}), 400
+        return jsonify({"error": "No valid ASINs found."}), 400
 
-    # Create job
     job_id = str(uuid.uuid4())[:8]
     job_state = {
         "status": "queued",
@@ -62,9 +61,8 @@ def start_scrape():
     }
     jobs[job_id] = job_state
 
-    # Start background thread
     thread = threading.Thread(
-        target=run_scrape_job,
+        target=run_pricing_job,
         args=(unique_asins, job_state),
         daemon=True,
     )
@@ -73,13 +71,13 @@ def start_scrape():
     return jsonify({
         "job_id": job_id,
         "total_asins": len(unique_asins),
-        "message": f"Scraping {len(unique_asins)} ASINs...",
+        "message": f"Fetching prices for {len(unique_asins)} ASINs...",
     })
 
 
 @app.route("/api/status/<job_id>")
 def job_status(job_id):
-    """Get the current status of a scraping job."""
+    """Get the current status of a pricing job."""
     job = jobs.get(job_id)
     if not job:
         return jsonify({"error": "Job not found"}), 404
@@ -109,70 +107,69 @@ def download_excel(job_id):
     ws.title = "Amazon Prices"
 
     # Styles
-    header_font = Font(name="Calibri", bold=True, color="FFFFFF", size=12)
+    header_font = Font(name="Calibri", bold=True, color="FFFFFF", size=11)
     header_fill = PatternFill(start_color="1a1a2e", end_color="1a1a2e", fill_type="solid")
-    header_alignment = Alignment(horizontal="center", vertical="center")
+    header_align = Alignment(horizontal="center", vertical="center")
     thin_border = Border(
         left=Side(style="thin", color="CCCCCC"),
         right=Side(style="thin", color="CCCCCC"),
         top=Side(style="thin", color="CCCCCC"),
         bottom=Side(style="thin", color="CCCCCC"),
     )
-
     ok_fill = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")
     err_fill = PatternFill(start_color="FFEBEE", end_color="FFEBEE", fill_type="solid")
 
     # Headers
-    headers = ["#", "ASIN", "Price", "Title", "Status"]
+    headers = ["#", "ASIN", "List Price", "Buybox Price", "Your Price", "Landed Price", "# Offers", "Buybox Seller", "FBA", "Status"]
     for col, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=header)
         cell.font = header_font
         cell.fill = header_fill
-        cell.alignment = header_alignment
+        cell.alignment = header_align
         cell.border = thin_border
 
     # Data rows
-    for i, result in enumerate(job["results"], 1):
+    for i, r in enumerate(job["results"], 1):
         row = i + 1
+        seller = r.get("buybox_seller") or {}
         ws.cell(row=row, column=1, value=i).border = thin_border
-        ws.cell(row=row, column=2, value=result["asin"]).border = thin_border
-        ws.cell(row=row, column=3, value=result["price"]).border = thin_border
-        ws.cell(row=row, column=4, value=result["title"]).border = thin_border
-        ws.cell(row=row, column=5, value=result.get("error") or "OK").border = thin_border
+        ws.cell(row=row, column=2, value=r["asin"]).border = thin_border
+        ws.cell(row=row, column=3, value=r["list_price"]).border = thin_border
+        ws.cell(row=row, column=4, value=r["buybox_price"]).border = thin_border
+        ws.cell(row=row, column=5, value=r["your_price"]).border = thin_border
+        ws.cell(row=row, column=6, value=r["landed_price"]).border = thin_border
+        ws.cell(row=row, column=7, value=r["num_offers"]).border = thin_border
+        ws.cell(row=row, column=8, value=seller.get("seller_id", "N/A")).border = thin_border
+        ws.cell(row=row, column=9, value="Yes" if seller.get("is_fba") else "No").border = thin_border
+        ws.cell(row=row, column=10, value=r.get("error") or "OK").border = thin_border
 
-        fill = ok_fill if result["status"] == "ok" else err_fill
-        for col in range(1, 6):
+        fill = ok_fill if r["status"] == "ok" else err_fill
+        for col in range(1, 11):
             ws.cell(row=row, column=col).fill = fill
 
     # Column widths
-    ws.column_dimensions["A"].width = 6
-    ws.column_dimensions["B"].width = 16
-    ws.column_dimensions["C"].width = 14
-    ws.column_dimensions["D"].width = 60
-    ws.column_dimensions["E"].width = 20
+    widths = [6, 16, 14, 14, 14, 14, 10, 18, 6, 20]
+    for i, w in enumerate(widths):
+        ws.column_dimensions[chr(65 + i)].width = w
 
-    # Freeze header row
     ws.freeze_panes = "A2"
 
-    # Summary row
-    summary_row = len(job["results"]) + 3
+    # Summary
+    sr = len(job["results"]) + 3
     ok_count = sum(1 for r in job["results"] if r["status"] == "ok")
-    ws.cell(row=summary_row, column=1, value="Summary:").font = Font(bold=True)
-    ws.cell(row=summary_row, column=2, value=f"{ok_count}/{len(job['results'])} prices found")
+    ws.cell(row=sr, column=1, value="Summary:").font = Font(bold=True)
+    ws.cell(row=sr, column=2, value=f"{ok_count}/{len(job['results'])} prices found")
 
-    # Save to bytes
     output = io.BytesIO()
     wb.save(output)
     output.seek(0)
 
     timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-    filename = f"amazon_prices_{timestamp}.xlsx"
-
     return send_file(
         output,
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
-        download_name=filename,
+        download_name=f"amazon_prices_{timestamp}.xlsx",
     )
 
 
