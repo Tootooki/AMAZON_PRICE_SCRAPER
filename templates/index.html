@@ -3,16 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Amazon ASIN Price Scraper</title>
-    <meta name="description" content="Free Amazon ASIN price checker. Paste ASINs, get buybox prices, download as Excel.">
+    <title>Amazon ASIN Price Checker</title>
+    <meta name="description" content="Check Amazon ASIN prices via SP-API. List Price, Buybox Price, Your Price — download as Excel.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
         :root {
             --bg-primary: #0a0a1a;
-            --bg-secondary: #111128;
             --bg-card: rgba(20, 20, 50, 0.7);
             --bg-glass: rgba(255, 255, 255, 0.04);
             --border: rgba(255, 255, 255, 0.08);
@@ -26,582 +24,286 @@
             --success-bg: rgba(0, 230, 118, 0.1);
             --error: #ff5252;
             --error-bg: rgba(255, 82, 82, 0.1);
-            --warning: #ffab40;
         }
-
         body {
             font-family: 'Inter', -apple-system, sans-serif;
             background: var(--bg-primary);
             color: var(--text-primary);
             min-height: 100vh;
-            overflow-x: hidden;
         }
-
-        /* Animated background */
         body::before {
             content: '';
             position: fixed;
             top: 0; left: 0; right: 0; bottom: 0;
             background:
                 radial-gradient(ellipse 600px 400px at 20% 20%, rgba(108, 92, 231, 0.08), transparent),
-                radial-gradient(ellipse 500px 300px at 80% 80%, rgba(162, 155, 254, 0.06), transparent),
-                radial-gradient(ellipse 400px 400px at 50% 50%, rgba(108, 92, 231, 0.04), transparent);
+                radial-gradient(ellipse 500px 300px at 80% 80%, rgba(162, 155, 254, 0.06), transparent);
             pointer-events: none;
-            z-index: 0;
         }
-
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 40px 24px;
-            position: relative;
-            z-index: 1;
-        }
-
-        /* Header */
-        .header {
-            text-align: center;
-            margin-bottom: 40px;
-        }
-
+        .container { max-width: 1200px; margin: 0 auto; padding: 32px 20px; position: relative; z-index: 1; }
+        .header { text-align: center; margin-bottom: 32px; }
         .header h1 {
-            font-size: 2.2rem;
-            font-weight: 800;
+            font-size: 2rem; font-weight: 800;
             background: linear-gradient(135deg, var(--accent-light), var(--accent), #e0d6ff);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 8px;
-            letter-spacing: -0.5px;
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+            margin-bottom: 6px;
         }
-
-        .header p {
-            color: var(--text-secondary);
-            font-size: 0.95rem;
-            font-weight: 300;
-        }
-
-        /* Card */
+        .header p { color: var(--text-secondary); font-size: 0.9rem; font-weight: 300; }
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.7rem; font-weight: 600;
+            background: rgba(0, 230, 118, 0.1); color: var(--success); margin-top: 6px; }
         .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 32px;
-            margin-bottom: 24px;
-            backdrop-filter: blur(20px);
-            transition: border-color 0.3s;
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 14px;
+            padding: 28px; margin-bottom: 20px; backdrop-filter: blur(20px);
         }
-
-        .card:hover { border-color: rgba(108, 92, 231, 0.2); }
-
-        .card-title {
-            font-size: 0.8rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            color: var(--text-muted);
-            margin-bottom: 16px;
-        }
-
-        /* Textarea */
+        .card-title { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; color: var(--text-muted); margin-bottom: 14px; }
         .asin-input {
-            width: 100%;
-            min-height: 180px;
-            background: var(--bg-glass);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 16px;
-            color: var(--text-primary);
-            font-family: 'SF Mono', 'Fira Code', monospace;
-            font-size: 0.9rem;
-            line-height: 1.7;
-            resize: vertical;
-            outline: none;
-            transition: border-color 0.3s, box-shadow 0.3s;
+            width: 100%; min-height: 140px; background: var(--bg-glass); border: 1px solid var(--border);
+            border-radius: 10px; padding: 14px; color: var(--text-primary);
+            font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.88rem; line-height: 1.6;
+            resize: vertical; outline: none; transition: border-color 0.3s, box-shadow 0.3s;
         }
-
-        .asin-input:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--accent-glow);
-        }
-
-        .asin-input::placeholder {
-            color: var(--text-muted);
-            font-family: 'Inter', sans-serif;
-        }
-
-        .input-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 12px;
-        }
-
-        .asin-count {
-            font-size: 0.82rem;
-            color: var(--text-muted);
-            font-weight: 400;
-        }
-
+        .asin-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+        .asin-input::placeholder { color: var(--text-muted); font-family: 'Inter', sans-serif; }
+        .input-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+        .asin-count { font-size: 0.8rem; color: var(--text-muted); }
         .asin-count span { color: var(--accent-light); font-weight: 600; }
-
-        /* Button */
-        .btn-scrape {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 12px 32px;
-            font-size: 0.95rem;
-            font-weight: 600;
-            font-family: 'Inter', sans-serif;
-            color: #fff;
-            background: linear-gradient(135deg, var(--accent), #7c6cf0);
-            border: none;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 4px 20px var(--accent-glow);
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px; padding: 11px 28px;
+            font-size: 0.9rem; font-weight: 600; font-family: 'Inter', sans-serif;
+            color: #fff; border: none; border-radius: 9px; cursor: pointer; transition: all 0.3s;
         }
-
-        .btn-scrape:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 28px rgba(108, 92, 231, 0.4);
-        }
-
-        .btn-scrape:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .btn-scrape .spinner {
-            width: 16px; height: 16px;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-top-color: #fff;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            display: none;
-        }
-
-        .btn-scrape.loading .spinner { display: block; }
-        .btn-scrape.loading .btn-text { display: none; }
-        .btn-scrape.loading .btn-loading-text { display: inline; }
+        .btn-primary { background: linear-gradient(135deg, var(--accent), #7c6cf0); box-shadow: 0 4px 18px var(--accent-glow); }
+        .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(108, 92, 231, 0.4); }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-download { background: linear-gradient(135deg, #00c853, #00e676); box-shadow: 0 4px 14px rgba(0, 230, 118, 0.2); }
+        .btn-download:hover { transform: translateY(-1px); }
+        .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.8s linear infinite; display: none; }
+        .btn.loading .spinner { display: block; }
+        .btn.loading .btn-text { display: none; }
+        .btn.loading .btn-loading-text { display: inline; }
         .btn-loading-text { display: none; }
-
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Progress */
-        .progress-section {
-            display: none;
-        }
-
-        .progress-section.active { display: block; }
-
-        .progress-bar-track {
-            width: 100%;
-            height: 6px;
-            background: var(--bg-glass);
-            border-radius: 3px;
-            overflow: hidden;
-            margin: 16px 0;
-        }
-
-        .progress-bar-fill {
-            height: 100%;
-            background: linear-gradient(90deg, var(--accent), var(--accent-light));
-            border-radius: 3px;
-            width: 0%;
-            transition: width 0.5s ease;
-            box-shadow: 0 0 12px var(--accent-glow);
-        }
-
-        .progress-info {
-            display: flex;
-            justify-content: space-between;
-            font-size: 0.82rem;
-        }
-
+        .progress-section, .results-section { display: none; }
+        .progress-section.active, .results-section.active { display: block; }
+        .progress-bar-track { width: 100%; height: 5px; background: var(--bg-glass); border-radius: 3px; overflow: hidden; margin: 12px 0; }
+        .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-light)); width: 0%; transition: width 0.5s ease; box-shadow: 0 0 10px var(--accent-glow); }
+        .progress-info { display: flex; justify-content: space-between; font-size: 0.8rem; }
         .progress-info .left { color: var(--text-secondary); }
         .progress-info .right { color: var(--accent-light); font-weight: 600; }
 
-        /* Results table */
-        .results-section { display: none; }
-        .results-section.active { display: block; }
+        .results-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+        .results-stats { display: flex; gap: 16px; font-size: 0.82rem; }
+        .stat { display: flex; align-items: center; gap: 5px; }
+        .stat-dot { width: 7px; height: 7px; border-radius: 50%; }
+        .stat-dot.ok { background: var(--success); }
+        .stat-dot.err { background: var(--error); }
 
-        .results-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
-        }
-
-        .results-stats {
-            display: flex;
-            gap: 20px;
-            font-size: 0.85rem;
-        }
-
-        .stat {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
-        .stat-dot {
-            width: 8px; height: 8px;
-            border-radius: 50%;
-        }
-
-        .stat-dot.ok { background: var(--success); box-shadow: 0 0 8px rgba(0, 230, 118, 0.4); }
-        .stat-dot.err { background: var(--error); box-shadow: 0 0 8px rgba(255, 82, 82, 0.4); }
-
-        .btn-download {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 10px 24px;
-            font-size: 0.88rem;
-            font-weight: 600;
-            font-family: 'Inter', sans-serif;
-            color: #fff;
-            background: linear-gradient(135deg, #00c853, #00e676);
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s;
-            box-shadow: 0 4px 16px rgba(0, 230, 118, 0.2);
-        }
-
-        .btn-download:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 6px 24px rgba(0, 230, 118, 0.3);
-        }
-
-        .table-wrapper {
-            overflow-x: auto;
-            border-radius: 12px;
-            border: 1px solid var(--border);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.85rem;
-        }
-
+        .table-wrapper { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); max-height: 500px; overflow-y: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
         thead th {
-            background: rgba(108, 92, 231, 0.12);
-            color: var(--accent-light);
-            font-weight: 600;
-            font-size: 0.75rem;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            padding: 12px 16px;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-            position: sticky;
-            top: 0;
+            background: rgba(108, 92, 231, 0.12); color: var(--accent-light); font-weight: 600;
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.8px;
+            padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border);
+            position: sticky; top: 0; z-index: 2;
         }
-
-        tbody tr {
-            border-bottom: 1px solid var(--border);
-            transition: background 0.2s;
-        }
-
+        tbody tr { border-bottom: 1px solid var(--border); transition: background 0.2s; }
         tbody tr:hover { background: var(--bg-glass); }
-
-        tbody td {
-            padding: 10px 16px;
-            color: var(--text-primary);
-            white-space: nowrap;
-        }
-
-        tbody td:nth-child(4) {
-            white-space: normal;
-            max-width: 400px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
+        tbody td { padding: 9px 12px; white-space: nowrap; }
         .price-ok { color: var(--success); font-weight: 600; }
-        .price-err { color: var(--error); font-weight: 500; font-size: 0.8rem; }
-
+        .price-na { color: var(--text-muted); }
+        .price-err { color: var(--error); font-size: 0.78rem; }
         .status-badge {
-            display: inline-flex;
-            align-items: center;
-            padding: 3px 10px;
-            border-radius: 20px;
-            font-size: 0.72rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            display: inline-flex; padding: 2px 8px; border-radius: 20px;
+            font-size: 0.68rem; font-weight: 600; text-transform: uppercase;
         }
-
-        .status-badge.ok {
-            background: var(--success-bg);
-            color: var(--success);
-        }
-
-        .status-badge.error {
-            background: var(--error-bg);
-            color: var(--error);
-        }
-
-        /* Animation for new rows */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .fade-in { animation: fadeIn 0.4s ease; }
-
-        /* Footer */
-        .footer {
-            text-align: center;
-            margin-top: 48px;
-            padding-top: 24px;
-            border-top: 1px solid var(--border);
-            color: var(--text-muted);
-            font-size: 0.78rem;
-        }
-
-        /* Scrollbar */
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        .status-badge.ok { background: var(--success-bg); color: var(--success); }
+        .status-badge.error { background: var(--error-bg); color: var(--error); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-in { animation: fadeIn 0.3s ease; }
+        .footer { text-align: center; margin-top: 36px; padding-top: 20px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.75rem; }
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: rgba(108, 92, 231, 0.3); border-radius: 3px; }
-
-        /* Responsive */
         @media (max-width: 640px) {
-            .container { padding: 20px 16px; }
-            .header h1 { font-size: 1.6rem; }
-            .card { padding: 20px; }
-            .input-footer { flex-direction: column; gap: 12px; align-items: stretch; }
-            .btn-scrape { width: 100%; justify-content: center; }
-            .results-header { flex-direction: column; gap: 12px; align-items: stretch; }
-            .btn-download { width: 100%; justify-content: center; }
+            .container { padding: 16px 12px; }
+            .header h1 { font-size: 1.4rem; }
+            .card { padding: 18px; }
+            .input-footer { flex-direction: column; gap: 10px; }
+            .btn { width: 100%; justify-content: center; }
+            .results-header { flex-direction: column; }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <h1>Amazon ASIN Price Scraper</h1>
-            <p>Paste your ASINs below to get current buybox prices. Free, no API key needed.</p>
-        </div>
+<div class="container">
+    <div class="header">
+        <h1>Amazon ASIN Price Checker</h1>
+        <p>Get List Price, Buybox Price & Your Price for any ASIN — powered by Amazon SP-API</p>
+        <div class="badge">SP-API &bull; Official &bull; No Scraping</div>
+    </div>
 
-        <!-- Input Card -->
-        <div class="card" id="inputCard">
-            <div class="card-title">Enter ASINs</div>
-            <textarea class="asin-input" id="asinInput"
-                placeholder="Paste ASINs here (one per line, or space/comma separated)&#10;&#10;Example:&#10;B0GK6NRMG1&#10;B0FF7TDP1N&#10;B0FHX3DFN8"></textarea>
-            <div class="input-footer">
-                <div class="asin-count">
-                    <span id="asinCount">0</span> ASINs detected
-                </div>
-                <button class="btn-scrape" id="btnScrape" onclick="startScraping()">
-                    <span class="spinner"></span>
-                    <span class="btn-text">&#9889; Scrape Prices</span>
-                    <span class="btn-loading-text">Scraping...</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- Progress Card -->
-        <div class="card progress-section" id="progressSection">
-            <div class="card-title">Progress</div>
-            <div class="progress-bar-track">
-                <div class="progress-bar-fill" id="progressBar"></div>
-            </div>
-            <div class="progress-info">
-                <span class="left" id="progressText">Starting...</span>
-                <span class="right" id="progressPercent">0%</span>
-            </div>
-        </div>
-
-        <!-- Results Card -->
-        <div class="card results-section" id="resultsSection">
-            <div class="results-header">
-                <div class="results-stats">
-                    <div class="stat">
-                        <div class="stat-dot ok"></div>
-                        <span id="okCount">0</span> found
-                    </div>
-                    <div class="stat">
-                        <div class="stat-dot err"></div>
-                        <span id="errCount">0</span> failed
-                    </div>
-                </div>
-                <button class="btn-download" id="btnDownload" onclick="downloadExcel()" style="display:none;">
-                    &#128229; Download Excel
-                </button>
-            </div>
-            <div class="table-wrapper" style="max-height: 500px; overflow-y: auto;">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>#</th>
-                            <th>ASIN</th>
-                            <th>Price</th>
-                            <th>Title</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="resultsBody"></tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <div class="footer">
-            Prices are scraped from Amazon.com buybox in real-time. Results may vary based on availability.
+    <div class="card" id="inputCard">
+        <div class="card-title">Enter ASINs</div>
+        <textarea class="asin-input" id="asinInput"
+            placeholder="Paste ASINs here (one per line, or space/comma separated)&#10;&#10;B0GK6NRMG1&#10;B0FF7TDP1N&#10;B0FHX3DFN8"></textarea>
+        <div class="input-footer">
+            <div class="asin-count"><span id="asinCount">0</span> ASINs detected</div>
+            <button class="btn btn-primary" id="btnScrape" onclick="startJob()">
+                <span class="spinner"></span>
+                <span class="btn-text">&#9889; Get Prices</span>
+                <span class="btn-loading-text">Fetching...</span>
+            </button>
         </div>
     </div>
 
-    <script>
-        let currentJobId = null;
-        let pollInterval = null;
-        let lastResultCount = 0;
+    <div class="card progress-section" id="progressSection">
+        <div class="card-title">Progress</div>
+        <div class="progress-bar-track"><div class="progress-bar-fill" id="progressBar"></div></div>
+        <div class="progress-info">
+            <span class="left" id="progressText">Starting...</span>
+            <span class="right" id="progressPercent">0%</span>
+        </div>
+    </div>
 
-        // Count ASINs in the textarea
-        const asinInput = document.getElementById('asinInput');
-        const asinCount = document.getElementById('asinCount');
+    <div class="card results-section" id="resultsSection">
+        <div class="results-header">
+            <div class="results-stats">
+                <div class="stat"><div class="stat-dot ok"></div><span id="okCount">0</span> found</div>
+                <div class="stat"><div class="stat-dot err"></div><span id="errCount">0</span> failed</div>
+            </div>
+            <button class="btn btn-download" id="btnDownload" onclick="downloadExcel()" style="display:none;">
+                &#128229; Download Excel
+            </button>
+        </div>
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>ASIN</th>
+                        <th>List Price</th>
+                        <th>Buybox Price</th>
+                        <th>Your Price</th>
+                        <th># Offers</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody"></tbody>
+            </table>
+        </div>
+    </div>
 
-        asinInput.addEventListener('input', () => {
-            const asins = parseAsins(asinInput.value);
-            asinCount.textContent = asins.length;
-        });
+    <div class="footer">
+        Powered by Amazon SP-API &bull; Prices reflect current marketplace data
+    </div>
+</div>
 
-        function parseAsins(text) {
-            const tokens = text.replace(/,/g, ' ').replace(/\t/g, ' ').replace(/\n/g, ' ').split(/\s+/);
-            const seen = new Set();
-            const result = [];
-            for (const t of tokens) {
-                const clean = t.trim().toUpperCase();
-                if (clean.length >= 5 && !seen.has(clean)) {
-                    seen.add(clean);
-                    result.push(clean);
+<script>
+    let currentJobId = null, pollInterval = null, lastResultCount = 0;
+    const asinInput = document.getElementById('asinInput');
+    const asinCount = document.getElementById('asinCount');
+
+    asinInput.addEventListener('input', () => {
+        asinCount.textContent = parseAsins(asinInput.value).length;
+    });
+
+    function parseAsins(text) {
+        const tokens = text.replace(/,/g,' ').replace(/\t/g,' ').replace(/\n/g,' ').split(/\s+/);
+        const seen = new Set(), result = [];
+        for (const t of tokens) {
+            const c = t.trim().toUpperCase();
+            if (c.length >= 5 && !seen.has(c)) { seen.add(c); result.push(c); }
+        }
+        return result;
+    }
+
+    function priceClass(val) {
+        if (!val || val === 'N/A') return 'price-na';
+        return 'price-ok';
+    }
+
+    async function startJob() {
+        const text = asinInput.value.trim();
+        if (!text) return;
+        const btn = document.getElementById('btnScrape');
+        btn.disabled = true; btn.classList.add('loading');
+        lastResultCount = 0;
+        document.getElementById('resultsBody').innerHTML = '';
+        document.getElementById('progressBar').style.width = '0%';
+        document.getElementById('progressPercent').textContent = '0%';
+        document.getElementById('progressText').textContent = 'Starting...';
+        document.getElementById('okCount').textContent = '0';
+        document.getElementById('errCount').textContent = '0';
+        document.getElementById('btnDownload').style.display = 'none';
+        document.getElementById('progressSection').classList.add('active');
+        document.getElementById('resultsSection').classList.add('active');
+        try {
+            const res = await fetch('/api/scrape', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ asins: text }),
+            });
+            const data = await res.json();
+            if (!res.ok) { alert(data.error || 'Error'); btn.disabled = false; btn.classList.remove('loading'); return; }
+            currentJobId = data.job_id;
+            pollInterval = setInterval(pollStatus, 1500);
+        } catch (err) { alert('Network error: ' + err.message); btn.disabled = false; btn.classList.remove('loading'); }
+    }
+
+    async function pollStatus() {
+        if (!currentJobId) return;
+        try {
+            const res = await fetch(`/api/status/${currentJobId}`);
+            const data = await res.json();
+            const pct = data.total > 0 ? Math.round((data.progress / data.total) * 100) : 0;
+            document.getElementById('progressBar').style.width = pct + '%';
+            document.getElementById('progressPercent').textContent = pct + '%';
+            const statusMap = {
+                authenticating: 'Authenticating with Amazon SP-API...',
+                fetching_your_prices: 'Fetching your prices...',
+                fetching_prices: `Fetching prices: ${data.progress}/${data.total}...`,
+                complete: 'Complete!',
+                error: 'Error: ' + (data.error || 'Unknown'),
+            };
+            document.getElementById('progressText').textContent = statusMap[data.status] || 'Starting...';
+
+            if (data.results.length > lastResultCount) {
+                const tbody = document.getElementById('resultsBody');
+                for (let i = lastResultCount; i < data.results.length; i++) {
+                    const r = data.results[i];
+                    const row = document.createElement('tr');
+                    row.className = 'fade-in';
+                    row.innerHTML = `
+                        <td>${i+1}</td>
+                        <td>${r.asin}</td>
+                        <td class="${priceClass(r.list_price)}">${r.list_price}</td>
+                        <td class="${priceClass(r.buybox_price)}">${r.buybox_price}</td>
+                        <td class="${priceClass(r.your_price)}">${r.your_price}</td>
+                        <td>${r.num_offers}</td>
+                        <td><span class="status-badge ${r.status==='ok'?'ok':'error'}">${r.status==='ok'?'OK':'Failed'}</span></td>
+                    `;
+                    tbody.appendChild(row);
+                    tbody.closest('.table-wrapper').scrollTop = tbody.closest('.table-wrapper').scrollHeight;
                 }
+                lastResultCount = data.results.length;
+                document.getElementById('okCount').textContent = data.results.filter(r=>r.status==='ok').length;
+                document.getElementById('errCount').textContent = data.results.filter(r=>r.status!=='ok').length;
             }
-            return result;
-        }
 
-        async function startScraping() {
-            const text = asinInput.value.trim();
-            if (!text) return;
-
-            const btn = document.getElementById('btnScrape');
-            btn.disabled = true;
-            btn.classList.add('loading');
-
-            // Reset UI
-            lastResultCount = 0;
-            document.getElementById('resultsBody').innerHTML = '';
-            document.getElementById('progressBar').style.width = '0%';
-            document.getElementById('progressPercent').textContent = '0%';
-            document.getElementById('progressText').textContent = 'Starting...';
-            document.getElementById('okCount').textContent = '0';
-            document.getElementById('errCount').textContent = '0';
-            document.getElementById('btnDownload').style.display = 'none';
-            document.getElementById('progressSection').classList.add('active');
-            document.getElementById('resultsSection').classList.add('active');
-
-            try {
-                const res = await fetch('/api/scrape', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ asins: text }),
-                });
-
-                const data = await res.json();
-                if (!res.ok) {
-                    alert(data.error || 'Error starting scrape');
-                    btn.disabled = false;
-                    btn.classList.remove('loading');
-                    return;
-                }
-
-                currentJobId = data.job_id;
-                pollInterval = setInterval(pollStatus, 2000);
-
-            } catch (err) {
-                alert('Network error: ' + err.message);
-                btn.disabled = false;
-                btn.classList.remove('loading');
+            if (data.status === 'complete' || data.status === 'error') {
+                clearInterval(pollInterval); pollInterval = null;
+                const btn = document.getElementById('btnScrape');
+                btn.disabled = false; btn.classList.remove('loading');
+                if (data.status === 'complete' && data.results.length > 0)
+                    document.getElementById('btnDownload').style.display = 'inline-flex';
             }
-        }
+        } catch (err) { console.error('Poll error:', err); }
+    }
 
-        async function pollStatus() {
-            if (!currentJobId) return;
-
-            try {
-                const res = await fetch(`/api/status/${currentJobId}`);
-                const data = await res.json();
-
-                // Update progress
-                const pct = data.total > 0 ? Math.round((data.progress / data.total) * 100) : 0;
-                document.getElementById('progressBar').style.width = pct + '%';
-                document.getElementById('progressPercent').textContent = pct + '%';
-
-                const statusText = data.status === 'initializing' ? 'Initializing browser...'
-                    : data.status === 'scraping' ? `Scraping ${data.progress}/${data.total} ASINs...`
-                    : data.status === 'complete' ? 'Complete!'
-                    : data.status === 'error' ? 'Error: ' + (data.error || 'Unknown')
-                    : 'Starting...';
-                document.getElementById('progressText').textContent = statusText;
-
-                // Update table with new results
-                if (data.results.length > lastResultCount) {
-                    const tbody = document.getElementById('resultsBody');
-                    for (let i = lastResultCount; i < data.results.length; i++) {
-                        const r = data.results[i];
-                        const row = document.createElement('tr');
-                        row.className = 'fade-in';
-                        row.innerHTML = `
-                            <td>${i + 1}</td>
-                            <td>${r.asin}</td>
-                            <td class="${r.status === 'ok' ? 'price-ok' : 'price-err'}">${r.price}</td>
-                            <td>${r.title}</td>
-                            <td><span class="status-badge ${r.status === 'ok' ? 'ok' : 'error'}">${r.status === 'ok' ? 'OK' : 'Failed'}</span></td>
-                        `;
-                        tbody.appendChild(row);
-
-                        // Auto-scroll to bottom
-                        const wrapper = tbody.closest('.table-wrapper');
-                        wrapper.scrollTop = wrapper.scrollHeight;
-                    }
-                    lastResultCount = data.results.length;
-
-                    // Update counts
-                    const okCount = data.results.filter(r => r.status === 'ok').length;
-                    const errCount = data.results.filter(r => r.status !== 'ok').length;
-                    document.getElementById('okCount').textContent = okCount;
-                    document.getElementById('errCount').textContent = errCount;
-                }
-
-                // Job complete
-                if (data.status === 'complete' || data.status === 'error') {
-                    clearInterval(pollInterval);
-                    pollInterval = null;
-
-                    const btn = document.getElementById('btnScrape');
-                    btn.disabled = false;
-                    btn.classList.remove('loading');
-
-                    if (data.status === 'complete' && data.results.length > 0) {
-                        document.getElementById('btnDownload').style.display = 'inline-flex';
-                    }
-                }
-
-            } catch (err) {
-                console.error('Poll error:', err);
-            }
-        }
-
-        function downloadExcel() {
-            if (!currentJobId) return;
-            window.location.href = `/api/download/${currentJobId}`;
-        }
-    </script>
+    function downloadExcel() {
+        if (currentJobId) window.location.href = `/api/download/${currentJobId}`;
+    }
+</script>
 </body>
 </html>
